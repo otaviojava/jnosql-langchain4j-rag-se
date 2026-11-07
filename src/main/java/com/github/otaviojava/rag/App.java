@@ -12,6 +12,9 @@ public class App {
     @Inject
     private PolicyAssistant assistant;
 
+    @Inject
+    private PolicyLoader loader;
+
     public static void main(String[] args) {
         try (WeldContainer container = new Weld().initialize()) {
             App app = container.select(App.class).get();
@@ -20,6 +23,7 @@ public class App {
     }
 
     public void start() {
+        loader.load();
         PolicyResponse response = assistant.analyze("""
         A customer reported an unauthorized credit card
         transaction 20 days after the purchase.
@@ -27,8 +31,8 @@ public class App {
         What should our support team do?
         """);
 
-        System.out.println(response.answer());
-
+        System.out.println(response);
+        System.out.println("Recommendations:");
         response.recommendations()
                 .forEach(System.out::println);
     }
