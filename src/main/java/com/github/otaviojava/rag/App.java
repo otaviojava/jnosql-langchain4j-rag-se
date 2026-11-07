@@ -10,22 +10,26 @@ import org.jboss.weld.environment.se.WeldContainer;
 public class App {
 
     @Inject
-    private VectorTemplate vectorTemplate;
+    private PolicyAssistant assistant;
 
     public static void main(String[] args) {
         try (WeldContainer container = new Weld().initialize()) {
-            container.select(App.class).get().start();
+            App app = container.select(App.class).get();
+            app.start();
         }
     }
 
     public void start() {
-        if (vectorTemplate == null) {
-            throw new IllegalStateException("VectorTemplate was not injected");
-        }
-        System.out.println("Weld started; VectorTemplate injected.");
-    }
+        PolicyResponse response = assistant.analyze("""
+        A customer reported an unauthorized credit card
+        transaction 20 days after the purchase.
 
-    VectorTemplate vectorTemplate() {
-        return vectorTemplate;
+        What should our support team do?
+        """);
+
+        System.out.println(response.answer());
+
+        response.recommendations()
+                .forEach(System.out::println);
     }
 }
