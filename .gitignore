@@ -24,3 +24,12 @@
 hs_err_pid*
 replay_pid*
 .idea/
+
+# Local secrets and IDE files
+.env
+.env.*
+!.env.example
+.idea/
+*.iml
+.vscode/
+.DS_Store
