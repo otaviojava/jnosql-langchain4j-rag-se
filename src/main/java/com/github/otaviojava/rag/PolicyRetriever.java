@@ -18,10 +18,14 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.logging.Logger;
 
 @Named("policyRetriever")
 @ApplicationScoped
 public class PolicyRetriever implements ContentRetriever {
+
+    private static final Logger LOGGER =
+            Logger.getLogger(PolicyRetriever.class.getName());
 
     @Inject
     private EmbeddingModel embeddingModel;
@@ -40,25 +44,49 @@ public class PolicyRetriever implements ContentRetriever {
     @Override
     public List<Content> retrieve(Query query) {
 
-        var embedding = embeddingModel
-                .embed(query.text())
-                .content();
+        LOGGER.info(() -> "Searching policies for: " + query.text());
+
+        var embedding = embeddingModel.embed(query.text()).content();
 
         var request = EmbeddingSearchRequest.builder()
                 .queryEmbedding(embedding)
                 .maxResults(maxResults)
                 .build();
 
-        return embeddingStore.search(request)
-                .matches()
-                .stream()
+        var matches = embeddingStore.search(request).matches();
+
+        LOGGER.info(() -> "Qdrant matches: " + matches.size());
+
+        var contents = matches.stream()
+                .peek(match -> LOGGER.info(() ->
+                        "Match ID: " + match.embeddingId()
+                                + ", score: " + match.score()))
                 .map(EmbeddingMatch::embeddingId)
                 .map(UUID::fromString)
-                .map(id -> template.find(Policy.class, id))
+                .map(id -> {
+                    var policy = template.find(Policy.class, id);
+
+                    LOGGER.info(() ->
+                            "JNoSQL lookup: " + id
+                                    + ", found: " + policy.isPresent());
+
+                    return policy;
+                })
                 .flatMap(Optional::stream)
-                .filter(Policy::active)
+                .filter(policy -> {
+                    LOGGER.info(() ->
+                            "Policy: " + policy.title()
+                                    + ", active: " + policy.active());
+
+                    return policy.active();
+                })
                 .map(this::toContent)
                 .toList();
+
+        LOGGER.info(() ->
+                "RAG content count: " + contents.size());
+
+        return contents;
     }
 
     private Content toContent(Policy policy) {
@@ -66,7 +94,7 @@ public class PolicyRetriever implements ContentRetriever {
                 Policy: %s
                 Version: %s
                 Department: %s
-
+                
                 %s
                 """.formatted(
                 policy.title(),
