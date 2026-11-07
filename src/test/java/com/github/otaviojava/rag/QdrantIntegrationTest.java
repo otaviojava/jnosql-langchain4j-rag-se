@@ -15,6 +15,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 @Testcontainers
 class QdrantIntegrationTest {
@@ -74,7 +75,11 @@ class QdrantIntegrationTest {
             assertThat(retrieved.getId()).isEqualTo(policy.getId());
             assertThat(retrieved.getTitle()).isEqualTo(policy.getTitle());
             assertThat(retrieved.getContent()).isEqualTo(policy.getContent());
-            assertThat(retrieved.getVector().values()).containsExactly(0.1f, 0.2f, 0.3f);
+            assertThat(retrieved.getVector().dimensions()).isEqualTo(3);
+            float[] values = retrieved.getVector().values();
+            assertThat(values[0]).isCloseTo(0.1f / (float) Math.sqrt(0.14), within(1.0e-6f));
+            assertThat(values[1]).isCloseTo(0.2f / (float) Math.sqrt(0.14), within(1.0e-6f));
+            assertThat(values[2]).isCloseTo(0.3f / (float) Math.sqrt(0.14), within(1.0e-6f));
         }
     }
 }
