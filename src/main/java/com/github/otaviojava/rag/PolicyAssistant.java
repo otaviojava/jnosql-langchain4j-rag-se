@@ -7,7 +7,7 @@ import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
 import jakarta.enterprise.context.ApplicationScoped;
 
-@RegisterAIService(scope = ApplicationScoped.class)
+@RegisterAIService(scope = ApplicationScoped.class, contentRetrieverName = "policyRetriever")
 public interface PolicyAssistant {
 
     @SystemMessage("""
