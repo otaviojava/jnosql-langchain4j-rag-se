@@ -1,0 +1,26 @@
+[
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440001",
+    "title": "Card Transaction Dispute",
+    "content": "Customers may report unauthorized credit card transactions within 30 days of the transaction. Support agents must verify the customer's identity, register the dispute, and refer the case to the fraud investigation team.",
+    "department": "Payments",
+    "version": "1.0",
+    "active": true
+  },
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440002",
+    "title": "Fraud Investigation",
+    "content": "When a customer reports a potentially fraudulent transaction, support agents must record the transaction details and notify the fraud team. The fraud team evaluates the evidence and determines whether additional verification is required.",
+    "department": "Fraud Prevention",
+    "version": "1.0",
+    "active": true
+  },
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440003",
+    "title": "Customer Identity Verification",
+    "content": "Before disclosing sensitive account information or initiating a transaction dispute, support agents must verify the customer's identity using the institution's approved procedure.",
+    "department": "Compliance",
+    "version": "1.0",
+    "active": true
+  }
+]
