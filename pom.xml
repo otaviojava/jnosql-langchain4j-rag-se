@@ -24,6 +24,7 @@
         <exec-maven-plugin.version>3.5.0</exec-maven-plugin.version>
         <langchain4j.version>1.23.0</langchain4j.version>
         <langchain4j-cdi.version>1.5.1</langchain4j-cdi.version>
+        <grpc.version>1.85.0</grpc.version>
     </properties>
 
     <dependencyManagement>
@@ -32,6 +33,13 @@
                 <groupId>dev.langchain4j</groupId>
                 <artifactId>langchain4j-bom</artifactId>
                 <version>${langchain4j.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-bom</artifactId>
+                <version>${grpc.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
