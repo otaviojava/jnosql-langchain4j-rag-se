@@ -8,7 +8,7 @@ import org.eclipse.jnosql.mapping.vector.Vector;
 
 import java.util.UUID;
 
-@Entity
+@Entity("policies")
 public record Policy(
         @Id UUID id,
         @Column String title,
