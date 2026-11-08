@@ -8,6 +8,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -43,23 +44,27 @@ class PolicyLoaderTest {
     }
 
     @Test
-    void shouldParseThreePoliciesFromClasspath() {
+    void shouldParseVersionedPoliciesFromClasspath() {
         List<PolicyLoader.PolicyDefinition> definitions =
                 loader.readDefinitions(PolicyLoader.POLICIES_RESOURCE);
 
-        assertThat(definitions).hasSize(3);
-        assertThat(definitions).extracting(PolicyLoader.PolicyDefinition::title)
-                .containsExactly("Card Transaction Dispute",
-                        "Fraud Investigation",
-                        "Customer Identity Verification");
-        assertThat(definitions).extracting(PolicyLoader.PolicyDefinition::department)
-                .containsExactly("Payments", "Fraud Prevention", "Compliance");
-        assertThat(definitions).allSatisfy(d -> {
-            assertThat(d.version()).isEqualTo("1.0");
-            assertThat(d.active()).isTrue();
-        });
-        assertThat(definitions.getFirst().id()).isEqualTo(CARD_ID);
-        assertThat(definitions.getFirst().content()).contains("30 days");
+        assertThat(definitions).hasSize(4);
+        assertThat(definitions).extracting(PolicyLoader.PolicyDefinition::id)
+                .doesNotHaveDuplicates();
+        assertThat(definitions).extracting(d -> d.policyCode() + " v" + d.version())
+                .containsExactly("CARD-DISPUTE v1.0", "CARD-DISPUTE v2.0",
+                        "FRAUD-INVESTIGATION v1.0", "IDENTITY-VERIFICATION v1.0");
+
+        var v1 = definitions.get(0);
+        assertThat(v1.id()).isEqualTo(CARD_ID);
+        assertThat(v1.from()).isEqualTo(LocalDate.of(2025, 1, 1));
+        assertThat(v1.until()).isEqualTo(LocalDate.of(2026, 7, 1));
+        assertThat(v1.content()).contains("30 days");
+
+        var v2 = definitions.get(1);
+        assertThat(v2.from()).isEqualTo(LocalDate.of(2026, 7, 1));
+        assertThat(v2.until()).isNull();
+        assertThat(v2.content()).contains("60 days");
     }
 
     @Test
@@ -67,14 +72,13 @@ class PolicyLoaderTest {
         loader.load();
 
         ArgumentCaptor<Policy> captor = ArgumentCaptor.forClass(Policy.class);
-        verify(template, times(3)).insert(captor.capture());
-        assertThat(captor.getAllValues()).extracting(Policy::title)
-                .containsExactly("Card Transaction Dispute",
-                        "Fraud Investigation",
-                        "Customer Identity Verification");
+        verify(template, times(4)).insert(captor.capture());
+        assertThat(captor.getAllValues()).extracting(Policy::policyCode)
+                .containsExactly("CARD-DISPUTE", "CARD-DISPUTE",
+                        "FRAUD-INVESTIGATION", "IDENTITY-VERIFICATION");
         assertThat(captor.getAllValues()).allSatisfy(p ->
                 assertThat(p.embedding()).isNotNull());
-        verify(embeddingModel, times(3)).embed(any(String.class));
+        verify(embeddingModel, times(4)).embed(any(String.class));
     }
 
     @Test
@@ -85,10 +89,10 @@ class PolicyLoaderTest {
         loader.load();
 
         ArgumentCaptor<Policy> captor = ArgumentCaptor.forClass(Policy.class);
-        verify(template, times(2)).insert(captor.capture());
+        verify(template, times(3)).insert(captor.capture());
         assertThat(captor.getAllValues()).extracting(Policy::id)
                 .doesNotContain(CARD_ID);
-        verify(embeddingModel, times(2)).embed(any(String.class));
+        verify(embeddingModel, times(3)).embed(any(String.class));
     }
 
     @Test
@@ -108,6 +112,16 @@ class PolicyLoaderTest {
         assertThatThrownBy(() -> loader.readDefinitions("missing-policies.json"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("missing-policies.json");
+    }
+
+    @Test
+    void shouldEmbedOnlyTitleAndContent() {
+        loader.load();
+
+        ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        verify(embeddingModel, times(4)).embed(captor.capture());
+        assertThat(captor.getAllValues()).allSatisfy(text ->
+                assertThat(text).doesNotContain("550e8400").doesNotContain("2025-01-01"));
     }
 
     @Test
