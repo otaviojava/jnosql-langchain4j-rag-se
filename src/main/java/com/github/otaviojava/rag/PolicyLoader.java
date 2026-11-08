@@ -5,6 +5,7 @@ import dev.langchain4j.model.embedding.EmbeddingModel;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.jnosql.mapping.vector.DenseVector;
+import org.eclipse.jnosql.mapping.vector.Vector;
 import org.eclipse.jnosql.mapping.vector.VectorTemplate;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -12,6 +13,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -56,9 +59,10 @@ public class PolicyLoader {
         int skipped = 0;
 
         for (PolicyDefinition definition : definitions) {
+            String label = definition.policyCode() + " v" + definition.version();
+
             if (template.find(Policy.class, definition.id()).isPresent()) {
-                LOGGER.info(() -> "Skipping existing policy: "
-                        + definition.title());
+                LOGGER.info(() -> "Skipping existing policy: " + label);
                 skipped++;
                 continue;
             }
@@ -67,17 +71,10 @@ public class PolicyLoader {
                     definition.title() + "\n" + definition.content()
             ).content();
 
-            template.insert(new Policy(
-                    definition.id(),
-                    definition.title(),
-                    definition.content(),
-                    definition.department(),
-                    definition.version(),
-                    definition.active(),
-                    DenseVector.of(embedding.vector())
-            ));
+            template.insert(definition.toPolicy(
+                    DenseVector.of(embedding.vector())).forStorage());
 
-            LOGGER.info(() -> "Inserted policy: " + definition.title());
+            LOGGER.info(() -> "Inserted policy: " + label);
             inserted++;
         }
 
@@ -93,9 +90,12 @@ public class PolicyLoader {
                 throw new IllegalStateException(
                         "Policy resource not found on classpath: " + resource);
             }
-            return MAPPER.readValue(input, new TypeReference<>() {
-            });
-        } catch (IOException e) {
+            List<PolicyDefinition> definitions = MAPPER.readValue(
+                    input, new TypeReference<>() {
+                    });
+            definitions.forEach(definition -> definition.toPolicy(null));
+            return definitions;
+        } catch (IOException | IllegalArgumentException e) {
             throw new IllegalStateException(
                     "Malformed policy resource: " + resource, e);
         }
@@ -103,16 +103,42 @@ public class PolicyLoader {
 
     record PolicyDefinition(
             UUID id,
+            String policyCode,
             String title,
             String content,
             String department,
             String version,
-            boolean active
+            String effectiveFrom,
+            String effectiveUntil
     ) {
         PolicyDefinition {
             Objects.requireNonNull(id, "Policy id is required");
+            Objects.requireNonNull(policyCode, "Policy code is required");
             Objects.requireNonNull(title, "Policy title is required");
             Objects.requireNonNull(content, "Policy content is required");
+            Objects.requireNonNull(version, "Policy version is required");
+            Objects.requireNonNull(effectiveFrom, "Policy effectiveFrom is required");
+        }
+
+        LocalDate from() {
+            return parse(effectiveFrom);
+        }
+
+        LocalDate until() {
+            return effectiveUntil == null ? null : parse(effectiveUntil);
+        }
+
+        Policy toPolicy(Vector embedding) {
+            return new Policy(id, policyCode, title, content, department,
+                    version, from(), until(), embedding);
+        }
+
+        private static LocalDate parse(String date) {
+            try {
+                return LocalDate.parse(date);
+            } catch (DateTimeParseException e) {
+                throw new IllegalStateException("Invalid policy date: " + date, e);
+            }
         }
     }
 }
