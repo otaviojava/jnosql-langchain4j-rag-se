@@ -15,6 +15,7 @@ import jakarta.inject.Named;
 import org.eclipse.jnosql.mapping.vector.VectorTemplate;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -23,6 +24,9 @@ import java.util.logging.Logger;
 @Named("policyRetriever")
 @ApplicationScoped
 public class PolicyRetriever implements ContentRetriever {
+
+    /** Invocation parameter carrying the date on which policies must apply. */
+    public static final String BUSINESS_DATE = "businessDate";
 
     private static final Logger LOGGER =
             Logger.getLogger(PolicyRetriever.class.getName());
@@ -43,9 +47,27 @@ public class PolicyRetriever implements ContentRetriever {
 
     @Override
     public List<Content> retrieve(Query query) {
+        LocalDate businessDate = businessDate(query);
 
-        LOGGER.info(() -> "Searching policies for: " + query.text());
+        LOGGER.info(() -> "Searching policies applicable on " + businessDate);
 
+        return semanticCandidates(query).stream()
+                .map(id -> template.find(Policy.class, id))
+                .flatMap(Optional::stream)
+                .filter(policy -> {
+                    boolean applies = policy.appliesOn(businessDate);
+                    LOGGER.info(() -> "Policy " + policy.policyCode()
+                            + " v" + policy.version()
+                            + (applies ? " applies" : " excluded")
+                            + " on " + businessDate);
+                    return applies;
+                })
+                .map(PolicyRetriever::toContent)
+                .toList();
+    }
+
+    /** Stage 1: semantic discovery in Qdrant; keeps relevance order. */
+    private List<UUID> semanticCandidates(Query query) {
         var embedding = embeddingModel.embed(query.text()).content();
 
         var request = EmbeddingSearchRequest.builder()
@@ -55,50 +77,46 @@ public class PolicyRetriever implements ContentRetriever {
 
         var matches = embeddingStore.search(request).matches();
 
-        LOGGER.info(() -> "Qdrant matches: " + matches.size());
+        LOGGER.info(() -> "Qdrant candidates: " + matches.size());
 
-        var contents = matches.stream()
-                .peek(match -> LOGGER.info(() ->
-                        "Match ID: " + match.embeddingId()
-                                + ", score: " + match.score()))
+        return matches.stream()
                 .map(EmbeddingMatch::embeddingId)
                 .map(UUID::fromString)
-                .map(id -> {
-                    var policy = template.find(Policy.class, id);
-
-                    LOGGER.info(() ->
-                            "JNoSQL lookup: " + id
-                                    + ", found: " + policy.isPresent());
-
-                    return policy;
-                })
-                .flatMap(Optional::stream)
-                .filter(policy -> {
-                    LOGGER.info(() ->
-                            "Policy: " + policy.title()
-                                    + ", active: " + policy.active());
-
-                    return policy.active();
-                })
-                .map(this::toContent)
                 .toList();
-
-        LOGGER.info(() ->
-                "RAG content count: " + contents.size());
-
-        return contents;
     }
 
-    private Content toContent(Policy policy) {
+    private static LocalDate businessDate(Query query) {
+        var parameters = query.metadata() == null
+                ? null : query.metadata().invocationParameters();
+        Object date = parameters == null
+                ? null : parameters.get(BUSINESS_DATE);
+        if (date instanceof LocalDate localDate) {
+            return localDate;
+        }
+        throw new IllegalArgumentException(
+                "A LocalDate invocation parameter named '" + BUSINESS_DATE
+                        + "' is required");
+    }
+
+    static Content toContent(Policy policy) {
+        String effective = policy.effectiveUntil() == null
+                ? policy.effectiveFrom() + " onwards"
+                : policy.effectiveFrom() + " until "
+                + policy.effectiveUntil() + " (exclusive)";
+
         String text = """
-                Policy: %s
+                Policy code: %s
+                Title: %s
                 Version: %s
+                Effective period: %s
                 Department: %s
-                
+
                 %s
                 """.formatted(
+                policy.policyCode(),
                 policy.title(),
                 policy.version(),
+                effective,
                 policy.department(),
                 policy.content()
         );
