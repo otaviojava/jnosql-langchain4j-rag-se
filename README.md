@@ -2,9 +2,14 @@
 
 A Java SE example of Retrieval-Augmented Generation (RAG) that combines
 **LangChain4j**, **Eclipse JNoSQL**, and **Qdrant** as the single database.
-It demonstrates a question that the policies can answer and one they cannot.
+It demonstrates versioned, domain-aware retrieval: semantic search finds candidate
+policies, and domain rules decide which of them apply.
 
-> All policies in this project are **fictional** and exist for demonstration only.
+> All policies, deadlines and dates in this project are **fictional examples**, not real
+> financial regulations.
+
+**Central lesson:** semantic relevance identifies candidate knowledge, while domain
+rules determine which knowledge is applicable.
 
 ## Architecture
 
@@ -15,6 +20,9 @@ It demonstrates a question that the policies can answer and one they cannot.
 - **Qdrant** stores the policies and vectors. LangChain4j searches the same
   collection (`jnosql.vector.database=policies`) that JNoSQL writes to; it returns
   point IDs, and `PolicyRetriever` loads the matching `Policy` entities through JNoSQL.
+- **PolicyRetriever** works in two stages: (1) LangChain4j embeds the question and
+  searches Qdrant for candidate point IDs; (2) JNoSQL loads the `Policy` entities and
+  keeps only revisions whose period applies on the business date.
 - **OpenAI** (`gpt-4o-mini`) generates the structured `PolicyResponse`.
 - **Weld SE** and **MicroProfile Config** provide CDI and configuration. No web server.
 
@@ -48,6 +56,20 @@ commands in it.**
 **IntelliJ IDEA:** open *Run | Edit Configurations*, select the `App` configuration,
 and add `RAG_CHAT_API_KEY=<your key>` under *Environment variables*.
 
+## Reset the development collection
+
+The collection must be recreated once after upgrading from the earlier, unversioned
+sample data (existing ids are skipped, never updated). This is a destructive,
+development-only step that is never run by the application, tests or build:
+
+```bash
+./scripts/reset-qdrant.sh    # asks for confirmation; uses QDRANT_URL (default http://localhost:6333)
+```
+
+It deletes only the `policies` collection and recreates it (384 dimensions, cosine).
+Other collections and the Docker volume are untouched. The next application start
+inserts the four policy records.
+
 ## Run the application
 
 ```bash
@@ -60,33 +82,50 @@ The script validates the key and runs `mvn compile exec:java`, preserving its ex
 
 ```bash
 mvn test      # unit tests, no external services
-mvn verify    # also runs the Qdrant integration test (needs Docker, no OpenAI key)
+mvn verify    # also runs Qdrant integration tests (needs Docker, no OpenAI key)
 ```
 
-The integration test starts its own Qdrant Testcontainer, ingests the policies through
-JNoSQL, checks that LangChain4j returns matching point IDs, that JNoSQL resolves them,
-and that `PolicyRetriever` returns the 30-day dispute policy. Live LLM scenarios are
-not part of the automated build because LLM output is non-deterministic.
+The integration tests start their own Qdrant Testcontainer and use a stub chat model,
+so no OpenAI key is needed. They verify persistence through JNoSQL, that LangChain4j
+and JNoSQL share the `policies` collection, the revision selected per business date,
+and that only applicable policies reach the model prompt. Live LLM output is not
+asserted because it is non-deterministic.
+
+## Policy revisions and temporal applicability
+
+- Policies are **immutable revisions**. Each revision has its own UUID (`id`); the stable
+  business identity shared by revisions is `policyCode` (e.g. `CARD-DISPUTE`).
+- A revision applies from `effectiveFrom` (inclusive) until `effectiveUntil` (exclusive);
+  a null end means open-ended. `Policy.appliesOn(LocalDate)` implements this.
+- `policies.json` has four records: Card Dispute v1.0 (30 days, until 2026-07-01), Card
+  Dispute v2.0 (60 days, from 2026-07-01), Fraud Investigation and Identity Verification.
+- Embeddings are generated from title and content only, never stored in JSON.
+- `PolicyLoader` inserts a record only if its UUID is missing and never updates existing
+  ones. To change a published policy, add a new revision with a new UUID.
+- Storage note: JNoSQL writes null fields as null payload values, which LangChain4j's
+  Qdrant store cannot read. An open-ended period is therefore persisted with the
+  `9999-12-31` sentinel (`OpenEndedDateConverter`) and read back as `null`.
+
+## How the business date reaches the retriever
+
+The date is explicit, typed input. `PolicyAssistant.analyze(question, InvocationParameters)`
+receives a LangChain4j `InvocationParameters` carrying a `LocalDate` under `businessDate`;
+LangChain4j exposes it to `PolicyRetriever` as `query.metadata().invocationParameters()`.
+Dates are never parsed from the question text, and a missing date is an error.
+
+For this small demo the candidate count (`rag.search.max-results=10`) covers all
+revisions. Production systems should consider database-side filters, authorization and
+candidate recall, and should not treat similarity scores as probabilities.
 
 ## Demonstration scenarios
 
-1. **Supported:** an unauthorized card transaction reported 20 days after purchase.
-   The Card Transaction Dispute policy (30-day window) applies, so the assistant gives
-   grounded recommendations and human review is normally not required.
-2. **Unsupported:** reversing an international wire transfer after 45 days. No sample
-   policy covers wire-transfer reversals. Vector search still returns the closest
-   policies, but similarity is not evidence: the system message instructs the model to
-   verify that a policy explicitly answers the question, otherwise to say the information
-   is insufficient, set `requiresHumanReview` to true, and recommend escalation without
-   inventing deadlines or procedures.
+`./scripts/run.sh` runs three scenarios and prints the question, business date, answer,
+human-review flag and recommendations:
 
-## Sample policies and idempotent ingestion
-
-Policies live in `src/main/resources/policies.json` (without embeddings) and are loaded
-from the classpath. `PolicyLoader` generates embeddings with LangChain4j and inserts each
-policy through JNoSQL, but only if its stable UUID does not already exist. Existing policies
-are skipped, never updated, and their embeddings are not regenerated.
-
-Editing an already-inserted policy in the JSON therefore does **not** change stored data.
-To apply such a change, recreate the Qdrant collection (e.g. `docker compose down -v`)
-or publish a new policy revision with a new id.
+1. **Historical policy** (2026-05-15): a report 20 days after a May 2026 purchase uses
+   Card Dispute v1.0 (30 days).
+2. **Current policy** (2026-08-15): a report 45 days after an August 2026 purchase uses
+   v2.0 (60 days), so it is within the period.
+3. **Insufficient knowledge**: an international wire-transfer reversal is not covered by
+   any policy. Similar card policies may be retrieved, but similarity is not evidence;
+   the assistant must say so, require human review and not invent a deadline.
