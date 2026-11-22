@@ -1,6 +1,10 @@
-package com.github.otaviojava.rag;
+package com.github.otaviojava.rag.template;
 
-import com.github.otaviojava.rag.app.App;
+import com.github.otaviojava.rag.RecordingChatModel;
+import com.github.otaviojava.rag.model.Policy;
+import com.github.otaviojava.rag.shared.DemoScenario;
+import com.github.otaviojava.rag.shared.PolicyContext;
+import com.github.otaviojava.rag.shared.PolicyResponse;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
@@ -79,7 +83,7 @@ class PolicyRetrievalIntegrationTest {
     private static List<String> retrieve(String question, LocalDate date) {
         InvocationContext context = InvocationContext.builder()
                 .invocationParameters(InvocationParameters.from(
-                        PolicyRetriever.BUSINESS_DATE, date))
+                        PolicyContext.BUSINESS_DATE, date))
                 .build();
         var query = Query.from(question, Metadata.builder()
                 .chatMessage(UserMessage.from(question))
@@ -136,7 +140,7 @@ class PolicyRetrievalIntegrationTest {
 
     @Test
     void shouldRetrieveHistoricalRevisionOnly() {
-        var contexts = retrieve(App.HISTORICAL_QUESTION, App.HISTORICAL_DATE);
+        var contexts = retrieve(DemoScenario.HISTORICAL.question(), DemoScenario.HISTORICAL.businessDate());
 
         assertThat(contexts).anyMatch(t -> t.contains("CARD-DISPUTE")
                 && t.contains("Version: 1.0") && t.contains("30 days"));
@@ -145,7 +149,7 @@ class PolicyRetrievalIntegrationTest {
 
     @Test
     void shouldRetrieveCurrentRevisionOnly() {
-        var contexts = retrieve(App.CURRENT_QUESTION, App.CURRENT_DATE);
+        var contexts = retrieve(DemoScenario.CURRENT.question(), DemoScenario.CURRENT.businessDate());
 
         assertThat(contexts).anyMatch(t -> t.contains("CARD-DISPUTE")
                 && t.contains("Version: 2.0") && t.contains("60 days"));
@@ -158,7 +162,7 @@ class PolicyRetrievalIntegrationTest {
 
         assertThatThrownBy(() -> retriever.retrieve(Query.from("question")))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining(PolicyRetriever.BUSINESS_DATE);
+                .hasMessageContaining(PolicyContext.BUSINESS_DATE);
     }
 
     @Test
@@ -166,8 +170,8 @@ class PolicyRetrievalIntegrationTest {
         RecordingChatModel.REQUESTS.clear();
         var assistant = container.select(PolicyAssistant.class).get();
 
-        PolicyResponse response = assistant.analyze(App.HISTORICAL_QUESTION,
-                InvocationParameters.from(PolicyRetriever.BUSINESS_DATE, App.HISTORICAL_DATE));
+        PolicyResponse response = assistant.analyze(DemoScenario.HISTORICAL.question(),
+                InvocationParameters.from(PolicyContext.BUSINESS_DATE, DemoScenario.HISTORICAL.businessDate()));
 
         assertThat(response.answer()).isEqualTo("stub answer");
         assertThat(response.requiresHumanReview()).isTrue();
