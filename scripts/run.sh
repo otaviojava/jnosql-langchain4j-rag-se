@@ -1,8 +1,16 @@
 #!/usr/bin/env bash
-# Development launcher: loads .env into the environment and runs the application.
+# Development launcher: loads .env into the environment and runs a demo.
+# Usage: ./scripts/run.sh [template|data]   (default: template)
 # WARNING: .env is sourced as a shell script. Treat it as trusted local
 # configuration and never put untrusted commands in it.
 set -euo pipefail
+
+DEMO="${1:-template}"
+case "$DEMO" in
+    template) MAIN_CLASS="com.github.otaviojava.rag.app.App" ;;
+    data)     MAIN_CLASS="com.github.otaviojava.rag.app.DataApp" ;;
+    *) echo "Usage: $0 [template|data]" >&2; exit 2 ;;
+esac
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_ROOT"
@@ -26,6 +34,6 @@ if [[ -z "${RAG_CHAT_API_KEY:-}" || "$RAG_CHAT_API_KEY" == "$PLACEHOLDER" ]]; th
 fi
 
 set +e
-mvn -q compile exec:java
+mvn -q compile exec:java -Ddemo.main="$MAIN_CLASS"
 status=$?
 exit "$status"
