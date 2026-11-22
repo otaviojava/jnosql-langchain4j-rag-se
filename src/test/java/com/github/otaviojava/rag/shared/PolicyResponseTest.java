@@ -1,4 +1,4 @@
-package com.github.otaviojava.rag;
+package com.github.otaviojava.rag.shared;
 
 import org.junit.jupiter.api.Test;
 
