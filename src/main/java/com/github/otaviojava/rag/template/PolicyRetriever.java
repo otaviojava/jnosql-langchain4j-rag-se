@@ -1,6 +1,7 @@
+package com.github.otaviojava.rag.template;
 
-package com.github.otaviojava.rag;
-
+import com.github.otaviojava.rag.model.Policy;
+import com.github.otaviojava.rag.shared.PolicyContext;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.rag.content.Content;
@@ -21,12 +22,14 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.logging.Logger;
 
-@Named("policyRetriever")
+/**
+ * Demo 1 retriever. Stage 1: LangChain4j semantic search in Qdrant.
+ * Stage 2: Eclipse JNoSQL {@link VectorTemplate} loads the entities and domain
+ * rules keep only the policies applicable on the business date.
+ */
+@Named("templatePolicyRetriever")
 @ApplicationScoped
 public class PolicyRetriever implements ContentRetriever {
-
-    /** Invocation parameter carrying the date on which policies must apply. */
-    public static final String BUSINESS_DATE = "businessDate";
 
     private static final Logger LOGGER =
             Logger.getLogger(PolicyRetriever.class.getName());
@@ -47,9 +50,9 @@ public class PolicyRetriever implements ContentRetriever {
 
     @Override
     public List<Content> retrieve(Query query) {
-        LocalDate businessDate = businessDate(query);
+        LocalDate businessDate = PolicyContext.businessDate(query);
 
-        LOGGER.info(() -> "Searching policies applicable on " + businessDate);
+        LOGGER.info(() -> "[template] Searching policies applicable on " + businessDate);
 
         return semanticCandidates(query).stream()
                 .map(id -> template.find(Policy.class, id))
@@ -62,7 +65,7 @@ public class PolicyRetriever implements ContentRetriever {
                             + " on " + businessDate);
                     return applies;
                 })
-                .map(PolicyRetriever::toContent)
+                .map(PolicyContext::toContent)
                 .toList();
     }
 
@@ -83,44 +86,5 @@ public class PolicyRetriever implements ContentRetriever {
                 .map(EmbeddingMatch::embeddingId)
                 .map(UUID::fromString)
                 .toList();
-    }
-
-    private static LocalDate businessDate(Query query) {
-        var parameters = query.metadata() == null
-                ? null : query.metadata().invocationParameters();
-        Object date = parameters == null
-                ? null : parameters.get(BUSINESS_DATE);
-        if (date instanceof LocalDate localDate) {
-            return localDate;
-        }
-        throw new IllegalArgumentException(
-                "A LocalDate invocation parameter named '" + BUSINESS_DATE
-                        + "' is required");
-    }
-
-    static Content toContent(Policy policy) {
-        String effective = policy.effectiveUntil() == null
-                ? policy.effectiveFrom() + " onwards"
-                : policy.effectiveFrom() + " until "
-                + policy.effectiveUntil() + " (exclusive)";
-
-        String text = """
-                Policy code: %s
-                Title: %s
-                Version: %s
-                Effective period: %s
-                Department: %s
-
-                %s
-                """.formatted(
-                policy.policyCode(),
-                policy.title(),
-                policy.version(),
-                effective,
-                policy.department(),
-                policy.content()
-        );
-
-        return Content.from(TextSegment.from(text));
     }
 }
