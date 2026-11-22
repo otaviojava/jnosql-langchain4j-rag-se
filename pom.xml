@@ -169,7 +169,7 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>${exec-maven-plugin.version}</version>
                 <configuration>
-                    <mainClass>com.github.otaviojava.rag.App</mainClass>
+                    <mainClass>com.github.otaviojava.rag.app.App</mainClass>
                 </configuration>
             </plugin>
         </plugins>
