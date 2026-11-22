@@ -1,5 +1,5 @@
 
-package com.github.otaviojava.rag;
+package com.github.otaviojava.rag.infra;
 
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
