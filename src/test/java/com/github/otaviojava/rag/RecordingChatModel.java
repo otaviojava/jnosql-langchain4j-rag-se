@@ -16,7 +16,7 @@ import java.util.List;
 @ApplicationScoped
 public class RecordingChatModel {
 
-    static final List<ChatRequest> REQUESTS = new ArrayList<>();
+    public static final List<ChatRequest> REQUESTS = new ArrayList<>();
 
     @Produces
     @Alternative
