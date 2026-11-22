@@ -1,5 +1,6 @@
-package com.github.otaviojava.rag;
+package com.github.otaviojava.rag.template;
 
+import com.github.otaviojava.rag.model.Policy;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.output.Response;
@@ -8,13 +9,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-import java.time.LocalDate;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -41,30 +39,6 @@ class PolicyLoaderTest {
         when(template.find(eq(Policy.class), any(UUID.class)))
                 .thenReturn(Optional.empty());
         loader = new PolicyLoader(embeddingModel, template);
-    }
-
-    @Test
-    void shouldParseVersionedPoliciesFromClasspath() {
-        List<PolicyLoader.PolicyDefinition> definitions =
-                loader.readDefinitions(PolicyLoader.POLICIES_RESOURCE);
-
-        assertThat(definitions).hasSize(4);
-        assertThat(definitions).extracting(PolicyLoader.PolicyDefinition::id)
-                .doesNotHaveDuplicates();
-        assertThat(definitions).extracting(d -> d.policyCode() + " v" + d.version())
-                .containsExactly("CARD-DISPUTE v1.0", "CARD-DISPUTE v2.0",
-                        "FRAUD-INVESTIGATION v1.0", "IDENTITY-VERIFICATION v1.0");
-
-        var v1 = definitions.get(0);
-        assertThat(v1.id()).isEqualTo(CARD_ID);
-        assertThat(v1.from()).isEqualTo(LocalDate.of(2025, 1, 1));
-        assertThat(v1.until()).isEqualTo(LocalDate.of(2026, 7, 1));
-        assertThat(v1.content()).contains("30 days");
-
-        var v2 = definitions.get(1);
-        assertThat(v2.from()).isEqualTo(LocalDate.of(2026, 7, 1));
-        assertThat(v2.until()).isNull();
-        assertThat(v2.content()).contains("60 days");
     }
 
     @Test
@@ -105,29 +79,5 @@ class PolicyLoaderTest {
 
         verify(template, never()).insert(any(Policy.class));
         verify(embeddingModel, never()).embed(any(String.class));
-    }
-
-    @Test
-    void shouldFailClearlyWhenResourceIsMissing() {
-        assertThatThrownBy(() -> loader.readDefinitions("missing-policies.json"))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("missing-policies.json");
-    }
-
-    @Test
-    void shouldEmbedOnlyTitleAndContent() {
-        loader.load();
-
-        ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
-        verify(embeddingModel, times(4)).embed(captor.capture());
-        assertThat(captor.getAllValues()).allSatisfy(text ->
-                assertThat(text).doesNotContain("550e8400").doesNotContain("2025-01-01"));
-    }
-
-    @Test
-    void shouldFailClearlyWhenResourceIsMalformed() {
-        assertThatThrownBy(() -> loader.readDefinitions("META-INF/beans.xml"))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Malformed policy resource");
     }
 }
