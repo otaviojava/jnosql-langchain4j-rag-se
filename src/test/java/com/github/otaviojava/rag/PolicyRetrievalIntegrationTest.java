@@ -1,5 +1,6 @@
 package com.github.otaviojava.rag;
 
+import com.github.otaviojava.rag.app.App;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
