@@ -24,6 +24,7 @@
         <exec-maven-plugin.version>3.5.0</exec-maven-plugin.version>
         <langchain4j.version>1.23.0</langchain4j.version>
         <langchain4j-cdi.version>1.5.1</langchain4j-cdi.version>
+        <demo.main>com.github.otaviojava.rag.app.App</demo.main>
         <grpc.version>1.85.0</grpc.version>
     </properties>
 
@@ -169,7 +170,7 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>${exec-maven-plugin.version}</version>
                 <configuration>
-                    <mainClass>com.github.otaviojava.rag.app.App</mainClass>
+                    <mainClass>${demo.main}</mainClass>
                 </configuration>
             </plugin>
         </plugins>
