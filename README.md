@@ -73,10 +73,23 @@ inserts the four policy records.
 ## Run the application
 
 ```bash
-./scripts/run.sh
+./scripts/run.sh            # Demo 1: Eclipse JNoSQL VectorTemplate (default)
+./scripts/run.sh data       # Demo 2: Jakarta Data repository
 ```
 
-The script validates the key and runs `mvn compile exec:java`, preserving its exit code.
+The script validates the key and runs `mvn compile exec:java` (main class chosen via `-Ddemo.main`), preserving its exit code.
+
+## Two demos, one entity
+
+Both demos run the same three scenarios against the same `policies` collection. LangChain4j does semantic discovery in both (Jakarta Data repositories in JNoSQL 1.2.0 have no vector similarity query); they differ in how entities are persisted and fetched.
+
+| Package | Demo 1 – `template` | Demo 2 – `data` |
+|---|---|---|
+| Entry point | `app.App` | `app.DataApp` |
+| Persistence | `VectorTemplate` | `PolicyRepository` (`@Repository`, `CrudRepository<Policy, UUID>`) |
+| Existence check / fetch | `VectorTemplate.find` | derived `existsById` / `findByIdIn` |
+
+Packages: `model` (the shared `Policy` entity), `template` and `data` (loader, retriever, assistant per demo), `shared` (prompts, response record, JSON definitions, scenarios, context formatting), `infra` (LangChain4j CDI producers, date converter), `app` (entry points).
 
 ## Run tests
 
