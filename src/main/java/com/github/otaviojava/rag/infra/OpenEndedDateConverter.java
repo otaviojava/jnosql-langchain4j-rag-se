@@ -1,6 +1,6 @@
 package com.github.otaviojava.rag.infra;
 
-import com.github.otaviojava.rag.Policy;
+import com.github.otaviojava.rag.model.Policy;
 import jakarta.nosql.AttributeConverter;
 
 import java.time.LocalDate;
