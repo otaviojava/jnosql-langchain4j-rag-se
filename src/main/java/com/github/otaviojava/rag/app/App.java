@@ -1,5 +1,9 @@
-package com.github.otaviojava.rag;
+package com.github.otaviojava.rag.app;
 
+import com.github.otaviojava.rag.PolicyAssistant;
+import com.github.otaviojava.rag.PolicyLoader;
+import com.github.otaviojava.rag.PolicyResponse;
+import com.github.otaviojava.rag.PolicyRetriever;
 import dev.langchain4j.invocation.InvocationParameters;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
