@@ -1,5 +1,6 @@
 package com.github.otaviojava.rag;
 
+import com.github.otaviojava.rag.infra.OpenEndedDateConverter;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
