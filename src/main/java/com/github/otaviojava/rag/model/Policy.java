@@ -1,4 +1,4 @@
-package com.github.otaviojava.rag;
+package com.github.otaviojava.rag.model;
 
 import com.github.otaviojava.rag.infra.OpenEndedDateConverter;
 import jakarta.nosql.Column;
